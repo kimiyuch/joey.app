@@ -3,6 +3,7 @@ import CMpv
 import MediaPlayer
 import OpenGL.GL3
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum Playback {
     static let videoExtensions: Set<String> = [
@@ -13,12 +14,40 @@ enum Playback {
         videoExtensions.contains((path as NSString).pathExtension.lowercased())
     }
 
+    static func isVideo(_ url: URL) -> Bool {
+        isVideo(url.path) || UTType(filenameExtension: url.pathExtension)?.conforms(to: .movie) == true
+    }
+
     /// Finished video files of a torrent, largest first.
     static func videos(in torrent: TorrentItem, files: [TorrentFile]) -> [URL] {
         files
             .filter { $0.size > 0 && $0.downloaded >= $0.size && isVideo($0.path) }
             .sorted { $0.size > $1.size }
             .map { URL(fileURLWithPath: torrent.savePath).appendingPathComponent($0.path) }
+    }
+}
+
+/// Videos opened from Finder, waiting for a view that can open windows.
+@MainActor
+@Observable
+final class PlayerLauncher {
+    static let shared = PlayerLauncher()
+    var pending: [URL] = []
+}
+
+struct OpenVideoButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Open Video…") {
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = [.movie]
+            panel.allowsMultipleSelection = true
+            if panel.runModal() == .OK {
+                panel.urls.forEach { openWindow(id: "player", value: $0) }
+            }
+        }
+        .keyboardShortcut("o", modifiers: [.command, .option])
     }
 }
 

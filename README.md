@@ -22,7 +22,7 @@
 - **Magnet links and .torrent files**: open them from your browser or Finder, or drop them onto the window
 - **Choose what to download**: pick individual files from a torrent
 - **Download in order**: start watching a video before it has finished
-- **Built-in video player** for finished downloads: MKV and most other formats, subtitles, audio tracks, resume where you left off, media keys
+- **Built-in video player** for finished downloads and any other video (File → Open Video…, or Open With in Finder): MKV and most other formats, subtitles, audio tracks, resume where you left off, media keys
 - **Seeding limits**: stop seeding at a ratio or after a set time
 - **Speed limits** for downloads and uploads
 - **Menu bar item** with live speeds; Joey keeps seeding when the window is closed
