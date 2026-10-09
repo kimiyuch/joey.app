@@ -77,3 +77,7 @@ The signing key lives in the macOS Keychain (account `joey`). Export it with `ve
 ## Credits
 
 Joey is built on [libtorrent](https://libtorrent.org) (BSD), [OpenSSL](https://openssl.org) (Apache 2.0), [mpv](https://mpv.io) with [FFmpeg](https://ffmpeg.org) (GPL) and [Sparkle](https://sparkle-project.org) (MIT). Their licenses ship inside the app under `Contents/Resources/Licenses`.
+
+## License
+
+Joey is free software under the [GNU General Public License v3](LICENSE).
