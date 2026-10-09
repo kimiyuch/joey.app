@@ -6,3 +6,6 @@ vendor/
 
 # Sparkle private signing key (never commit)
 /sparkle-private-key.txt
+
+# Private session notes (server details, not for the public repo)
+/SESSION.md
