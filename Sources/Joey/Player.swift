@@ -101,7 +101,7 @@ final class MPVPlayer {
         for (name, value) in [
             ("config", "no"), ("terminal", "no"), ("load-scripts", "no"), ("ytdl", "no"), ("osc", "no"),
             ("input-default-bindings", "no"), ("input-vo-keyboard", "no"),
-            ("vo", "libmpv"), ("hwdec", "auto-safe"), ("keep-open", "yes"), ("sub-auto", "fuzzy"),
+            ("vo", "libmpv"), ("hwdec", "auto-safe"), ("video-sync", "display-resample"), ("keep-open", "yes"), ("sub-auto", "fuzzy"),
         ] {
             mpv_set_option_string(mpv, name, value)
         }
@@ -137,6 +137,7 @@ final class MPVPlayer {
         NowPlaying.shared.activate(self)
     }
 
+
     func shutdown() {
         guard let mpv else { return }
         savePosition()
@@ -165,6 +166,9 @@ final class MPVPlayer {
 
     func toggleFullScreen() { window?.toggleFullScreen(nil) }
 
+    /// mpv can't see the display from inside a layer, so it's told the refresh rate.
+    func setDisplayFPS(_ fps: Int) { setString("display-fps-override", String(fps)) }
+
     // MARK: mpv
 
     private func drainEvents() {
@@ -189,7 +193,9 @@ final class MPVPlayer {
             savePosition()
             NowPlaying.shared.update(self)
         case "time-pos":
-            position = data?.assumingMemoryBound(to: Double.self).pointee ?? 0
+            // mpv reports every frame; the controls only need a few updates a second.
+            let value = data?.assumingMemoryBound(to: Double.self).pointee ?? 0
+            if abs(value - position) >= 0.25 { position = value }
             if abs(position - lastSavedPosition) >= 10 { savePosition() }
         case "duration":
             duration = data?.assumingMemoryBound(to: Double.self).pointee ?? 0
@@ -272,11 +278,71 @@ final class WeakBox<T: AnyObject> {
 
 // MARK: - Rendering
 
-/// Draws mpv's frames through its OpenGL render API. Everything here runs on the main thread.
+/// Signals every refresh of the display a view is on, from a thread of its own so the UI can't delay it.
+final class VsyncClock: NSObject {
+    private let condition = NSCondition()
+    private var refreshes: UInt64 = 0
+    private var link: CADisplayLink?
+
+    private static let thread: Thread = {
+        let thread = Thread {
+            RunLoop.current.add(NSMachPort(), forMode: .default)
+            while true { RunLoop.current.run(mode: .default, before: .distantFuture) }
+        }
+        thread.name = "Joey vsync"
+        thread.qualityOfService = .userInteractive
+        thread.start()
+        return thread
+    }()
+
+    @MainActor
+    func attach(to view: NSView) {
+        detach()
+        let link = view.displayLink(target: self, selector: #selector(refresh))
+        // A steady refresh rate keeps ProMotion from shifting the rhythm mpv syncs to.
+        let maximum = Float(view.window?.screen?.maximumFramesPerSecond ?? 60)
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: maximum, maximum: maximum, preferred: maximum)
+        self.link = link
+        perform(#selector(schedule), on: Self.thread, with: link, waitUntilDone: false)
+    }
+
+    func detach() {
+        link?.invalidate()
+        link = nil
+    }
+
+    @objc private func schedule(_ link: CADisplayLink) {
+        link.add(to: .current, forMode: .common)
+    }
+
+    @objc private func refresh() {
+        condition.lock()
+        refreshes &+= 1
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    /// Blocks until the next refresh, like a swap with vsync would. Gives up after a while,
+    /// since the display link pauses when the window is hidden.
+    func waitForRefresh() {
+        condition.lock()
+        let start = refreshes
+        let deadline = Date(timeIntervalSinceNow: 0.05)
+        while refreshes == start, condition.wait(until: deadline) {}
+        condition.unlock()
+    }
+}
+
+/// Draws mpv's frames through its OpenGL render API on a queue of its own, so the UI can't hold up frames.
+/// After each frame the queue waits for the display to refresh and tells mpv, so mpv can line frames up with
+/// the display (video-sync=display-resample), the way mpv's own macOS output does.
 final class MPVLayer: CAOpenGLLayer {
     private let mpv: OpaquePointer?
+    private let lock = NSLock()
     private var renderContext: OpaquePointer?
     private var glContext: CGLContextObj?
+    let renderQueue = DispatchQueue(label: "ch.kimiyu.Joey.render", qos: .userInteractive)
+    let vsync = VsyncClock()
     var onReady: (() -> Void)?
 
     init(mpv: OpaquePointer) {
@@ -310,8 +376,10 @@ final class MPVLayer: CAOpenGLLayer {
 
     override func copyCGLContext(forPixelFormat format: CGLPixelFormatObj) -> CGLContextObj {
         let context = super.copyCGLContext(forPixelFormat: format)
-        glContext = context
-        createRenderContext()
+        lock.withLock {
+            glContext = context
+            createRenderContext()
+        }
         return context
     }
 
@@ -336,9 +404,21 @@ final class MPVLayer: CAOpenGLLayer {
         guard created >= 0, let renderContext else { return }
         mpv_render_context_set_update_callback(renderContext, { ctx in
             let layer = Unmanaged<MPVLayer>.fromOpaque(ctx!).takeUnretainedValue()
-            DispatchQueue.main.async { layer.display() }
+            layer.renderQueue.async { layer.renderFrame() }
         }, Unmanaged.passUnretained(self).toOpaque())
         DispatchQueue.main.async { [weak self] in self?.onReady?() }
+    }
+
+    private func renderFrame() {
+        display()
+        // Off the main thread nothing commits the frame, so push it to the screen right away.
+        CATransaction.flush()
+        vsync.waitForRefresh()
+        lock.withLock {
+            guard let renderContext, let glContext else { return }
+            CGLSetCurrentContext(glContext)
+            mpv_render_context_report_swap(renderContext)
+        }
     }
 
     override func canDraw(inCGLContext ctx: CGLContextObj, pixelFormat pf: CGLPixelFormatObj,
@@ -348,6 +428,8 @@ final class MPVLayer: CAOpenGLLayer {
 
     override func draw(inCGLContext ctx: CGLContextObj, pixelFormat pf: CGLPixelFormatObj,
                        forLayerTime t: CFTimeInterval, displayTime ts: UnsafePointer<CVTimeStamp>?) {
+        lock.lock()
+        defer { lock.unlock() }
         guard let renderContext else {
             glClearColor(0, 0, 0, 1)
             glClear(GLbitfield(GL_COLOR_BUFFER_BIT))
@@ -375,14 +457,17 @@ final class MPVLayer: CAOpenGLLayer {
 
     /// Must run before the mpv handle is destroyed.
     func teardown() {
-        guard let renderContext else { return }
-        if let glContext {
-            CGLLockContext(glContext)
-            CGLSetCurrentContext(glContext)
+        vsync.detach()
+        // Same lock order as Core Animation's drawing: GL context first, then ours.
+        if let glContext { CGLLockContext(glContext) }
+        lock.lock()
+        if let renderContext {
+            if let glContext { CGLSetCurrentContext(glContext) }
+            mpv_render_context_set_update_callback(renderContext, nil, nil)
+            mpv_render_context_free(renderContext)
+            self.renderContext = nil
         }
-        mpv_render_context_set_update_callback(renderContext, nil, nil)
-        mpv_render_context_free(renderContext)
-        self.renderContext = nil
+        lock.unlock()
         if let glContext { CGLUnlockContext(glContext) }
     }
 }
@@ -401,9 +486,16 @@ final class MPVVideoView: NSView {
 
     override func makeBackingLayer() -> CALayer { videoLayer }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { videoLayer.vsync.attach(to: self) } else { videoLayer.vsync.detach() }
+    }
+
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         videoLayer.contentsScale = window?.backingScaleFactor ?? 2
+        // The window may have moved to a display with another refresh rate.
+        if window != nil { videoLayer.vsync.attach(to: self) }
     }
 }
 
@@ -419,6 +511,7 @@ struct VideoSurface: NSViewRepresentable {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
             player.window = window
+            player.setDisplayFPS(window.screen?.maximumFramesPerSecond ?? 60)
             guard let videoSize, window.contentAspectRatio != videoSize else { return }
             window.contentAspectRatio = videoSize
             if !window.styleMask.contains(.fullScreen) {
