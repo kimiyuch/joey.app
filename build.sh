@@ -8,8 +8,6 @@ source ./release.env
 FEED_URL=${JOEY_FEED_URL:-https://github.com/$REPO/releases/latest/download/appcast.xml}
 SPARKLE=vendor/sparkle-2.10.0/Sparkle.framework
 
-LIBTORRENT=/opt/homebrew/opt/libtorrent-rasterbar/lib/libtorrent-rasterbar.2.1.dylib
-OPENSSL=/opt/homebrew/Cellar/openssl@4/4.0.3/lib
 APP=build/Joey.app
 
 ./scripts/fetch-sparkle.sh
@@ -28,28 +26,52 @@ if [[ ! -f build/AppIcon.icns ]]; then
 fi
 cp build/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-# Third-party licenses that have to ship with the binaries.
-LICENSES="$APP/Contents/Resources/Licenses"
-mkdir -p "$LICENSES"
-cp /opt/homebrew/opt/libtorrent-rasterbar/LICENSE "$LICENSES/libtorrent.txt"
-cp "$OPENSSL/../LICENSE.txt" "$LICENSES/OpenSSL.txt"
-cp vendor/sparkle-2.10.0/LICENSE "$LICENSES/Sparkle.txt"
-
-# Bundle the dylibs and point everything at @rpath instead of Homebrew paths.
+# Bundle every Homebrew dylib the app needs (libtorrent, OpenSSL, libmpv with FFmpeg and friends),
+# following dependencies recursively, and point all references at @rpath instead of Homebrew paths.
 FW="$APP/Contents/Frameworks"
-cp -L "$LIBTORRENT" "$OPENSSL/libssl.4.dylib" "$OPENSSL/libcrypto.4.dylib" "$FW/"
-chmod u+w "$FW"/*.dylib
-for lib in "$FW"/*.dylib; do
-  install_name_tool -id "@rpath/$(basename "$lib")" "$lib" 2>/dev/null
-done
-for target in "$APP/Contents/MacOS/Joey" "$FW"/*.dylib; do
-  otool -L "$target" | awk 'NR>1 {print $1}' | grep -E 'libtorrent-rasterbar|libssl|libcrypto' | while read -r dep; do
-    install_name_tool -change "$dep" "@rpath/$(basename "$dep")" "$target" 2>/dev/null
+typeset -A bundled  # file name -> real path in the Homebrew Cellar
+queue=("$APP/Contents/MacOS/Joey")
+while (( ${#queue} )); do
+  source=$queue[1]; queue=(${queue[2,-1]})
+  for dep in $(otool -L "$source" | awk 'NR>1 {print $1}' || true); do
+    # Homebrew libraries refer to each other by absolute path, a few by @rpath or @loader_path.
+    case $dep in
+      /opt/homebrew/*) ;;
+      @rpath/*|@loader_path/*) [[ $source == /opt/homebrew/* ]] || continue; dep="$(dirname "$source")/${dep#*/}" ;;
+      *) continue ;;
+    esac
+    name=$(basename "$dep")
+    [[ -n ${bundled[$name]-} ]] && continue
+    bundled[$name]=$(realpath "$dep")
+    cp -L "$dep" "$FW/$name"
+    chmod u+w "$FW/$name"
+    queue+=("${bundled[$name]}")
   done
 done
-install_name_tool -add_rpath "@loader_path" "$FW/libtorrent-rasterbar.2.1.dylib" 2>/dev/null || true
-install_name_tool -add_rpath "@loader_path" "$FW/libssl.4.dylib" 2>/dev/null || true
+for lib in "$FW"/*.dylib; do
+  install_name_tool -id "@rpath/$(basename "$lib")" "$lib" 2>/dev/null
+  install_name_tool -add_rpath "@loader_path" "$lib" 2>/dev/null || true
+done
+for target in "$APP/Contents/MacOS/Joey" "$FW"/*.dylib; do
+  changes=()
+  for dep in $(otool -L "$target" | awk 'NR>1 {print $1}' | grep '^/opt/homebrew/' || true); do
+    changes+=(-change "$dep" "@rpath/$(basename "$dep")")
+  done
+  if (( ${#changes} )); then install_name_tool "${changes[@]}" "$target" 2>/dev/null; fi
+done
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/Joey"
+
+# Third-party licenses that have to ship with the binaries, one folder per Homebrew package.
+LICENSES="$APP/Contents/Resources/Licenses"
+mkdir -p "$LICENSES/Sparkle"
+cp vendor/sparkle-2.10.0/LICENSE "$LICENSES/Sparkle/"
+for real in ${(v)bundled}; do
+  keg=${real%%/lib/*}
+  package=$(basename "$(dirname "$keg")")
+  mkdir -p "$LICENSES/$package"
+  find "$keg" -maxdepth 1 -type f \( -iname 'LICEN[CS]E*' -o -iname 'COPYING*' -o -iname 'COPYRIGHT*' -o -iname 'NOTICE*' -o -iname '*GPL*' \) \
+    -exec cp {} "$LICENSES/$package/" \;
+done
 
 ditto "$SPARKLE" "$FW/Sparkle.framework"
 

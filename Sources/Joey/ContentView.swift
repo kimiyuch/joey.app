@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Environment(TorrentStore.self) private var store
+    @Environment(\.openWindow) private var openWindow
     @State private var selection = Set<String>()
     @AppStorage("showInspector") private var showInspector = false
     @State private var showImporter = false
@@ -58,6 +59,10 @@ struct ContentView: View {
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if !ids.isEmpty {
+                if ids.count == 1, let video = video(in: ids.first!) {
+                    Button("Play") { openWindow(id: "player", value: video) }
+                    Divider()
+                }
                 Button("Resume") { store.resume(ids) }
                 Button("Pause") { store.pause(ids) }
                 Button("Verify Data") { store.recheck(ids) }
@@ -153,6 +158,12 @@ struct ContentView: View {
         }
     }
 
+    /// The largest finished video file of a torrent.
+    private func video(in id: String) -> URL? {
+        guard let torrent = store.torrents.first(where: { $0.id == id }) else { return nil }
+        return Playback.videos(in: torrent, files: store.files(for: id)).first
+    }
+
     /// Only shows the directions that are actually moving, e.g. "↓ 1.2 MB/s  ↑ 40 KB/s".
     private func speed(_ t: TorrentItem) -> String {
         var parts: [String] = []
@@ -182,6 +193,7 @@ extension TorrentState {
 
 struct InspectorView: View {
     @Environment(TorrentStore.self) private var store
+    @Environment(\.openWindow) private var openWindow
     let torrent: TorrentItem
     @State private var files: [TorrentFile] = []
 
@@ -215,19 +227,25 @@ struct InspectorView: View {
                     Text(torrent.hasMetadata ? "No files" : "Waiting for metadata…").foregroundStyle(.secondary)
                 }
                 ForEach(files) { file in
-                    Toggle(isOn: Binding(
-                        get: { file.priority > 0 },
-                        set: { store.setFile(file.id, of: torrent.id, wanted: $0); reloadFiles() }
-                    )) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text((file.path as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
-                                .help(file.path)
-                            ProgressView(value: file.progress).controlSize(.mini)
-                            Text("\(Format.bytes(file.downloaded)) of \(Format.bytes(file.size))")
-                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    HStack {
+                        Toggle(isOn: Binding(
+                            get: { file.priority > 0 },
+                            set: { store.setFile(file.id, of: torrent.id, wanted: $0); reloadFiles() }
+                        )) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text((file.path as NSString).lastPathComponent).lineLimit(1).truncationMode(.middle)
+                                    .help(file.path)
+                                ProgressView(value: file.progress).controlSize(.mini)
+                                Text("\(Format.bytes(file.downloaded)) of \(Format.bytes(file.size))")
+                                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            }
+                        }
+                        .toggleStyle(.checkbox)
+                        if let video = Playback.videos(in: torrent, files: [file]).first {
+                            Button("Play", systemImage: "play.circle.fill") { openWindow(id: "player", value: video) }
+                                .labelStyle(.iconOnly).buttonStyle(.borderless).font(.title2)
                         }
                     }
-                    .toggleStyle(.checkbox)
                 }
             }
         }

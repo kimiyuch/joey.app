@@ -8,9 +8,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     lazy var updaterModel = UpdaterModel(updater: updaterController.updater)
 
-    // Handles .torrent files opened from Finder and magnet: links from the browser.
+    // Handles .torrent files and videos opened from Finder, and magnet: links from the browser.
     func application(_ application: NSApplication, open urls: [URL]) {
-        store.open(urls)
+        let videos = urls.filter { $0.isFileURL && Playback.isVideo($0) }
+        PlayerLauncher.shared.pending += videos
+        store.open(urls.filter { !videos.contains($0) })
     }
 
     // Keep running (and seeding) after the window is closed; the menu bar item stays available.
@@ -36,7 +38,18 @@ struct JoeyApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesButton(model: delegate.updaterModel)
             }
+            CommandGroup(after: .newItem) {
+                OpenVideoButton()
+            }
         }
+
+        WindowGroup("Player", id: "player", for: URL.self) { $url in
+            if let url { PlayerWindow(url: url) }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
+        .defaultSize(width: 960, height: 540)
+        .restorationBehavior(.disabled)
 
         MenuBarExtra {
             MenuBarContent(updaterModel: delegate.updaterModel)
@@ -54,13 +67,22 @@ struct JoeyApp: App {
 
 struct MenuBarLabel: View {
     let store: TorrentStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        let down = store.totalDownloadRate
-        if down >= 1024 {
-            Text("↓ \(Format.rate(down))").monospacedDigit()
-        } else {
-            Image(systemName: "arrow.down.circle")
+        Group {
+            let down = store.totalDownloadRate
+            if down >= 1024 {
+                Text("↓ \(Format.rate(down))").monospacedDigit()
+            } else {
+                Image(systemName: "arrow.down.circle")
+            }
+        }
+        // The menu bar item is always around, so it opens the videos handed to the app from Finder.
+        .onChange(of: PlayerLauncher.shared.pending, initial: true) {
+            let launcher = PlayerLauncher.shared
+            launcher.pending.forEach { openWindow(id: "player", value: $0) }
+            if !launcher.pending.isEmpty { launcher.pending = [] }
         }
     }
 }
