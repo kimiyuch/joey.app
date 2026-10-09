@@ -22,6 +22,7 @@
 - **Magnet links and .torrent files**: open them from your browser or Finder, or drop them onto the window
 - **Choose what to download**: pick individual files from a torrent
 - **Download in order**: start watching a video before it has finished
+- **Built-in video player** for finished downloads: MKV and most other formats, subtitles, audio tracks, resume where you left off, media keys
 - **Seeding limits**: stop seeding at a ratio or after a set time
 - **Speed limits** for downloads and uploads
 - **Menu bar item** with live speeds; Joey keeps seeding when the window is closed
@@ -48,12 +49,12 @@ You only need to do this once. Joey updates itself after that.
 You need Xcode and the Apple Silicon version of [Homebrew](https://brew.sh) (in `/opt/homebrew`).
 
 ```sh
-brew install libtorrent-rasterbar
+brew install libtorrent-rasterbar mpv
 ./build.sh        # builds build/Joey.app
 ./make-dmg.sh     # builds build/Joey.dmg
 ```
 
-`build.sh` downloads [Sparkle](https://sparkle-project.org) into `vendor/` the first time, then bundles libtorrent, OpenSSL and Sparkle into the app, so it runs without Homebrew.
+`build.sh` downloads [Sparkle](https://sparkle-project.org) into `vendor/` the first time, then bundles libtorrent, OpenSSL, mpv (with FFmpeg and its other libraries) and Sparkle into the app, so it runs without Homebrew.
 
 ## Releasing
 
@@ -75,4 +76,4 @@ The signing key lives in the macOS Keychain (account `joey`). Export it with `ve
 
 ## Credits
 
-Joey is built on [libtorrent](https://libtorrent.org) (BSD), [OpenSSL](https://openssl.org) (Apache 2.0) and [Sparkle](https://sparkle-project.org) (MIT). Their licenses ship inside the app under `Contents/Resources/Licenses`.
+Joey is built on [libtorrent](https://libtorrent.org) (BSD), [OpenSSL](https://openssl.org) (Apache 2.0), [mpv](https://mpv.io) with [FFmpeg](https://ffmpeg.org) (GPL) and [Sparkle](https://sparkle-project.org) (MIT). Their licenses ship inside the app under `Contents/Resources/Licenses`.

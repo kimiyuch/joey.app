@@ -4,6 +4,7 @@ import PackageDescription
 let brew = "/opt/homebrew"
 let libtorrent = "\(brew)/opt/libtorrent-rasterbar"
 let openssl = "\(brew)/Cellar/openssl@4/4.0.3"
+let mpv = "\(brew)/opt/mpv"
 let sparkle = "\(Context.packageDirectory)/vendor/sparkle-2.10.0"
 
 let package = Package(
@@ -36,15 +37,18 @@ let package = Package(
                 .linkedFramework("SystemConfiguration"),
             ]
         ),
+        // libmpv headers; the library itself is linked by the app target.
+        .systemLibrary(name: "CMpv", path: "Sources/CMpv"),
         .executableTarget(
             name: "Joey",
-            dependencies: ["TorrentCore"],
+            dependencies: ["TorrentCore", "CMpv"],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                .unsafeFlags(["-F\(sparkle)"]),
+                .unsafeFlags(["-F\(sparkle)", "-Xcc", "-I\(mpv)/include", "-Xcc", "-DGL_SILENCE_DEPRECATION"]),
             ],
             linkerSettings: [
-                .unsafeFlags(["-F\(sparkle)", "-framework", "Sparkle"]),
+                .unsafeFlags(["-F\(sparkle)", "-framework", "Sparkle", "-L\(mpv)/lib", "-lmpv"]),
+                .linkedFramework("OpenGL"),
             ]
         ),
     ]

@@ -38,6 +38,14 @@ struct JoeyApp: App {
             }
         }
 
+        WindowGroup("Player", id: "player", for: URL.self) { $url in
+            if let url { PlayerWindow(url: url) }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
+        .defaultSize(width: 960, height: 540)
+        .restorationBehavior(.disabled)
+
         MenuBarExtra {
             MenuBarContent(updaterModel: delegate.updaterModel)
                 .environment(delegate.store)

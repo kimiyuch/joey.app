@@ -21,4 +21,11 @@ enum Format {
     static func percent(_ value: Double) -> String {
         value.formatted(.percent.precision(.fractionLength(value < 1 ? 1 : 0)))
     }
+
+    /// Playback time like "4:05" or "1:02:09".
+    static func time(_ seconds: Double) -> String {
+        let total = seconds.isFinite ? max(Int(seconds), 0) : 0
+        let (h, m, s) = (total / 3600, total / 60 % 60, total % 60)
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+    }
 }
