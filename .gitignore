@@ -1,0 +1,8 @@
+.DS_Store
+.build/
+.swiftpm/
+build/
+vendor/
+
+# Sparkle private signing key (never commit)
+/sparkle-private-key.txt
