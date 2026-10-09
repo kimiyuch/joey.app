@@ -1,5 +1,6 @@
 import AppKit
 import CMpv
+import IOKit.pwr_mgt
 import MediaPlayer
 import OpenGL.GL3
 import SwiftUI
@@ -91,6 +92,7 @@ final class MPVPlayer {
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private let wakeup = WeakBox<MPVPlayer>()
     @ObservationIgnored private var lastSavedPosition: Double = 0
+    @ObservationIgnored private var displayAssertion: IOPMAssertionID?
 
     var title: String { url.lastPathComponent }
 
@@ -141,6 +143,7 @@ final class MPVPlayer {
     func shutdown() {
         guard let mpv else { return }
         savePosition()
+        keepDisplayAwake(false)
         NowPlaying.shared.deactivate(self)
         layer?.teardown()
         mpv_set_wakeup_callback(mpv, nil, nil)
@@ -190,6 +193,7 @@ final class MPVPlayer {
         switch name {
         case "pause":
             isPaused = data?.assumingMemoryBound(to: Int32.self).pointee != 0
+            keepDisplayAwake(!isPaused)
             savePosition()
             NowPlaying.shared.update(self)
         case "time-pos":
@@ -235,6 +239,23 @@ final class MPVPlayer {
         }
         audioTracks = tracks.filter { $0.type == "audio" }.map { MediaTrack(id: $0.id, title: label($0)) }
         subtitleTracks = tracks.filter { $0.type == "sub" }.map { MediaTrack(id: $0.id, title: label($0)) }
+    }
+
+    /// Keeps the display from dimming and sleeping while a video plays.
+    private func keepDisplayAwake(_ awake: Bool) {
+        if awake, displayAssertion == nil {
+            var id = IOPMAssertionID(0)
+            let result = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "Playing \(title)" as CFString,
+                &id
+            )
+            if result == kIOReturnSuccess { displayAssertion = id }
+        } else if !awake, let id = displayAssertion {
+            IOPMAssertionRelease(id)
+            displayAssertion = nil
+        }
     }
 
     private func savePosition() {
