@@ -5,6 +5,7 @@ import UserNotifications
 
 enum Defaults {
     static let downloadFolder = "downloadFolder"
+    static let videoFolder = "videoFolder"
     static let downloadLimitKB = "downloadLimitKB"
     static let uploadLimitKB = "uploadLimitKB"
     static let stopAtRatio = "stopAtRatio"

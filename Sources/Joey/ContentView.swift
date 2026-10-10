@@ -302,6 +302,7 @@ struct SettingsView: View {
     @AppStorage(Defaults.stopAfterTime) private var stopAfterTime = false
     @AppStorage(Defaults.seedMinutes) private var seedMinutes = 24 * 60
     @State private var folder = ""
+    @AppStorage(Defaults.videoFolder) private var videoFolder = ""
     @State private var defaultHandlerMessage: String?
 
     var body: some View {
@@ -310,6 +311,19 @@ struct SettingsView: View {
                 HStack {
                     Text(folder).lineLimit(1).truncationMode(.middle)
                     Button("Choose…", action: chooseFolder)
+                }
+            }
+            LabeledContent("Video folder") {
+                HStack {
+                    Text(videoFolder.isEmpty ? "Same as download folder" : videoFolder)
+                        .lineLimit(1).truncationMode(.middle)
+                        .foregroundStyle(videoFolder.isEmpty ? .secondary : .primary)
+                    Button("Choose…", action: chooseVideoFolder)
+                    if !videoFolder.isEmpty {
+                        Button("Reset", systemImage: "xmark.circle.fill") { videoFolder = "" }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless)
+                            .help("Use the download folder")
+                    }
                 }
             }
             TextField("Download limit (KB/s)", value: $downloadLimit, format: .number)
@@ -358,6 +372,16 @@ struct SettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             store.downloadFolder = url
             folder = url.path
+        }
+    }
+
+    private func chooseVideoFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.directoryURL = videoFolder.isEmpty ? store.downloadFolder : URL(fileURLWithPath: videoFolder)
+        if panel.runModal() == .OK, let url = panel.url {
+            videoFolder = url.path
         }
     }
 

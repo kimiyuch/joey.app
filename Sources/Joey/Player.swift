@@ -621,24 +621,37 @@ struct PlayerWindow: View {
         ZStack {
             Color.black
             if let player {
-                PlayerView(player: player)
+                PlayerView(player: player, onOpen: open)
+                    // A new file gets a new player and with it a new video surface.
+                    .id(ObjectIdentifier(player))
             }
         }
         .ignoresSafeArea()
         .frame(minWidth: 480, minHeight: 270)
-        .navigationTitle(url.lastPathComponent)
+        .navigationTitle(player?.title ?? url.lastPathComponent)
+        // Video looks best around dark controls, and the popovers stay readable over it.
+        .preferredColorScheme(.dark)
         .onAppear { if player == nil { player = MPVPlayer(url: url) } }
         .onDisappear { player?.shutdown() }
+    }
+
+    /// Plays another file in this window.
+    private func open(_ url: URL) {
+        guard url != player?.url else { return }
+        player?.shutdown()
+        player = MPVPlayer(url: url)
     }
 }
 
 struct PlayerView: View {
     let player: MPVPlayer
+    let onOpen: (URL) -> Void
     @State private var showControls = true
     @State private var hoveringControls = false
     @State private var activity = 0
     @State private var scrubPosition: Double?
     @State private var showSubtitleImporter = false
+    @State private var showLibrary = false
 
     var body: some View {
         VideoSurface(player: player, videoSize: player.videoSize)
@@ -657,12 +670,13 @@ struct PlayerView: View {
                 showControls = true
                 try? await Task.sleep(for: .seconds(2.5))
                 guard !Task.isCancelled else { return }
-                if !player.isPaused && !hoveringControls {
+                if !player.isPaused && !hoveringControls && !showLibrary {
                     showControls = false
                     NSCursor.setHiddenUntilMouseMoves(true)
                 }
             }
             .onChange(of: player.isPaused) { activity += 1 }
+            .onChange(of: showLibrary) { activity += 1 }
             .fileImporter(isPresented: $showSubtitleImporter, allowedContentTypes: [.data]) { result in
                 if case let .success(url) = result { player.addSubtitleFile(url) }
             }
@@ -725,6 +739,17 @@ struct PlayerView: View {
                 Label("Subtitles", systemImage: "captions.bubble")
             }
             .help("Subtitles")
+
+            Button("Videos", systemImage: "film.stack") { showLibrary.toggle() }
+                .keyboardShortcut("l")
+                .help("Videos")
+                .popover(isPresented: $showLibrary, arrowEdge: .top) {
+                    VideoLibraryList(current: player.url) { url in
+                        showLibrary = false
+                        onOpen(url)
+                    }
+                    .equatable()
+                }
 
             Button("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") { player.toggleFullScreen() }
                 .keyboardShortcut("f", modifiers: [])

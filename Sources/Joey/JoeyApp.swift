@@ -44,7 +44,7 @@ struct JoeyApp: App {
         }
 
         WindowGroup("Player", id: "player", for: URL.self) { $url in
-            if let url { PlayerWindow(url: url) }
+            if let url { PlayerWindow(url: url).environment(delegate.store) }
         }
         .windowStyle(.hiddenTitleBar)
         .windowBackgroundDragBehavior(.enabled)

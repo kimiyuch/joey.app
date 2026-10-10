@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 (2026-10-10)
+
+- **Video list in the player.** Pick a video folder in Settings, then open the list from the player's controls
+  (or ⌘L): every video in the folder and its subfolders, searchable, with where you left off. Click one to play
+  it in the same window.
+- The player is always dark, so its menus and the list stay readable over the video.
+
 ## 0.2.2 (2026-10-10)
 
 - The player has buttons to skip back and forward 10 seconds.
