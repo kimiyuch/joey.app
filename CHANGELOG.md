@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4 (2026-10-10)
+
+- ⌘F switches the player to full screen and back, in addition to F.
+
 ## 0.2.3 (2026-10-10)
 
 - **Video list in the player.** Pick a video folder in Settings, then open the list from the player's controls

@@ -753,6 +753,14 @@ struct PlayerView: View {
 
             Button("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") { player.toggleFullScreen() }
                 .keyboardShortcut("f", modifiers: [])
+                // A button takes one shortcut, so an invisible twin handles ⌘F.
+                .background {
+                    Button("Full Screen") { player.toggleFullScreen() }
+                        .keyboardShortcut("f")
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
