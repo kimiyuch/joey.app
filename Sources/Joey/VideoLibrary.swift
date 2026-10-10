@@ -269,11 +269,14 @@ private struct ContinueWatchingCard: View {
                 Spacer(minLength: 0)
                 if entry.duration > 0 {
                     ProgressView(value: entry.progress).controlSize(.small)
-                    Text("\(Format.time(entry.duration - entry.position)) left")
+                }
+                HStack(spacing: 4) {
+                    Text(entry.duration > 0
+                         ? "\(Format.time(entry.duration - entry.position)) left"
+                         : "Stopped at \(Format.time(entry.position))")
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                } else {
-                    Text("Stopped at \(Format.time(entry.position))")
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    Spacer(minLength: 4)
+                    VideoBadges(url: entry.url, release: release)
                 }
             }
             .padding(10)
@@ -329,11 +332,8 @@ private struct VideoRow: View {
                     .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
                 Spacer(minLength: 8)
                 status
-                HStack(spacing: 4) {
-                    if let quality = video.release.quality { Badge(text: quality) }
-                    Badge(text: video.url.pathExtension.uppercased())
-                }
-                .frame(width: 92, alignment: .trailing)
+                VideoBadges(url: video.url, release: video.release)
+                    .frame(width: 92, alignment: .trailing)
                 Text(Format.added(video.added))
                     .foregroundStyle(.tertiary)
                     .frame(width: 76, alignment: .trailing)
@@ -389,6 +389,19 @@ private struct VideoRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .monospacedDigit()
+        }
+    }
+}
+
+/// Quality and file type, e.g. "1080p" "MKV".
+private struct VideoBadges: View {
+    let url: URL
+    let release: ReleaseName
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let quality = release.quality { Badge(text: quality) }
+            Badge(text: url.pathExtension.uppercased())
         }
     }
 }

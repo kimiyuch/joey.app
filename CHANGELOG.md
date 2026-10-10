@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.8 (2026-10-10)
+
+- Continue Watching cards show each video's quality and file type, like the list below them.
+
 ## 0.2.7 (2026-10-10)
 
 - **A tidier video list.** Release names like `Show.Name.S01E02.1080p.WEB…` show as "Show Name · S01E02",
