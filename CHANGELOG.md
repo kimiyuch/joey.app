@@ -2,7 +2,7 @@
 
 ## 0.2.7 (2026-10-10)
 
-- **A tidier video list.** Release names like `Slow.Horses.S06E03.1080p.HEVC…` show as "Slow Horses · S06E03",
+- **A tidier video list.** Release names like `Show.Name.S01E02.1080p.WEB…` show as "Show Name · S01E02",
   with episode titles where the file name has them. Episodes are grouped by show, in order, with movies in between.
 - Each video shows its quality and file type, when it was added, and how much is left if you stopped partway
   through. Right-click to start one from the beginning.
