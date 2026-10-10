@@ -59,7 +59,7 @@ brew install libtorrent-rasterbar mpv
 ## Releasing
 
 ```sh
-./release.sh 0.2 "What changed in this version"
+./release.sh 0.2   # release notes come from CHANGELOG.md
 ```
 
 This bumps the version, builds the app and DMG, signs the update with the Sparkle key in your Keychain, writes `appcast.xml`, tags the commit and publishes a GitHub release. Joey checks `releases/latest/download/appcast.xml`, so every installed copy sees the new version.
