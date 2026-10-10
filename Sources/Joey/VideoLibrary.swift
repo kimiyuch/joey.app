@@ -239,6 +239,7 @@ private struct ContinueWatching: View {
                 Text("All Videos").font(.title2.weight(.bold)).padding(.top, 18)
             }
             .padding(.horizontal, 6)
+            .padding(.top, 14)
             .padding(.bottom, 6)
         }
     }

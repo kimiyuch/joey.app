@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.10 (2026-10-10)
+
+- A little more room above Continue Watching in the Watch tab.
+
 ## 0.2.9 (2026-10-10)
 
 - The Help menu links to Joey's website and its new [legal notice](https://joey.kimiyu.ch/legal).
