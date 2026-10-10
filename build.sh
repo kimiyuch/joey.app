@@ -73,6 +73,33 @@ for real in ${(v)bundled}; do
     -exec cp {} "$LICENSES/$package/" \;
 done
 
+# Acknowledgements.txt: every bundled package with its version, license and where to get its source,
+# plus the source offer the GPL asks for. Opened from Help → Acknowledgements.
+typeset -A versions  # package -> version in the Homebrew Cellar
+for real in ${(v)bundled}; do
+  keg=${real%%/lib/*}
+  versions[$(basename "$(dirname "$keg")")]=$(basename "$keg")
+done
+{
+  cat <<EOF
+Joey $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+Free software under the GNU General Public License v3.
+Source code: https://github.com/$REPO
+
+Joey includes the open-source software listed below. Their license texts are in the
+Licenses folder next to this file.
+
+Source code offer: for every library below, the source code of the exact version that
+ships with Joey is available at the address shown. If you can't get it there, open an issue
+at https://github.com/$REPO/issues and we'll send it to you. This offer is valid for three
+years after the last release of Joey that contains the library.
+
+EOF
+  printf '%s\n  Version 2.10.0, MIT\n  Source: https://github.com/sparkle-project/Sparkle/releases/tag/2.10.0\n\n' Sparkle
+  /opt/homebrew/bin/brew info --json=v2 ${(ko)versions} \
+    | /usr/bin/python3 -I scripts/acknowledgements.py $(for k v in ${(kv)versions}; do print -r -- "$k=$v"; done)
+} > "$APP/Contents/Resources/Acknowledgements.txt"
+
 ditto "$SPARKLE" "$FW/Sparkle.framework"
 
 # Sign inside-out: Sparkle's helpers, the framework, the dylibs, then the app.

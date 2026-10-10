@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.9 (2026-10-10)
+
+- The Help menu links to Joey's website and its new [legal notice](https://joey.kimiyu.ch/legal).
+- **Help → Acknowledgements** lists the open-source libraries inside Joey, with their versions, licenses and
+  where to get their source code.
+
 ## 0.2.8 (2026-10-10)
 
 - Continue Watching cards show each video's quality and file type, like the list below them.

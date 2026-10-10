@@ -76,7 +76,9 @@ The signing key lives in the macOS Keychain (account `joey`). Export it with `ve
 
 ## Credits
 
-Joey is built on [libtorrent](https://libtorrent.org) (BSD), [OpenSSL](https://openssl.org) (Apache 2.0), [mpv](https://mpv.io) with [FFmpeg](https://ffmpeg.org) (GPL) and [Sparkle](https://sparkle-project.org) (MIT). Their licenses ship inside the app under `Contents/Resources/Licenses`.
+Joey is built on [libtorrent](https://libtorrent.org) (BSD), [OpenSSL](https://openssl.org) (Apache 2.0), [mpv](https://mpv.io) with [FFmpeg](https://ffmpeg.org) (GPL) and [Sparkle](https://sparkle-project.org) (MIT). Their licenses ship inside the app under `Contents/Resources/Licenses`, and **Help → Acknowledgements** lists every bundled library with its version, license and source code. If you can't get the source of a bundled library from there, [open an issue](https://github.com/kimiyuch/joey.app/issues) and we'll send it to you.
+
+Joey is a general-purpose BitTorrent client. It doesn't host, index or link to any content; you're responsible for what you download and share with it. See the [legal notice](https://joey.kimiyu.ch/legal).
 
 ## License
 

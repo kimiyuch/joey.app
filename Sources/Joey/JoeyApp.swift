@@ -73,6 +73,17 @@ struct JoeyApp: App {
             CommandGroup(before: .toolbar) {
                 MainTabCommands()
             }
+            // Joey has no help book, so the Help menu points at the website and the bundled licenses.
+            CommandGroup(replacing: .help) {
+                Link("Joey Website", destination: URL(string: "https://joey.kimiyu.ch")!)
+                Link("Legal Notice", destination: URL(string: "https://joey.kimiyu.ch/legal")!)
+                Divider()
+                Button("Acknowledgements") {
+                    if let url = Bundle.main.url(forResource: "Acknowledgements", withExtension: "txt") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
         }
 
         WindowGroup("Player", id: "player", for: URL.self) { $url in
