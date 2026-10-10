@@ -4,6 +4,7 @@
 #   ./release.sh 0.2
 #
 # The release notes are the version's section in CHANGELOG.md ("## 0.2 (date)"), which has to exist.
+# CHANGELOG.md is attached to the release too: joey.kimiyu.ch builds its changelog page from it.
 #
 # Environment:
 #   PUBLISH=0            build into build/release without bumping git or uploading (for testing)
@@ -58,6 +59,5 @@ git commit -q -am "Release $VERSION"
 git tag "$TAG"
 git push -q && git push -q origin "$TAG"
 gh release create "$TAG" --repo "$REPO" --title "Joey $VERSION" --notes "$NOTES" \
-  "$OUT/updates/$ARCHIVE" "$OUT/Joey.dmg" "$OUT/appcast.xml"
+  "$OUT/updates/$ARCHIVE" "$OUT/Joey.dmg" "$OUT/appcast.xml" CHANGELOG.md
 echo "Published Joey $VERSION"
-echo "Now add $VERSION to the changelog in ../joey.web (resources/views/changelog.blade.php) and deploy it."

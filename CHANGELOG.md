@@ -20,7 +20,7 @@
 
 ## 0.1 (2026-10-09)
 
-- First release: a small, native BitTorrent client for macOS.
+- **First release.** A small, native BitTorrent client for macOS.
 - Magnet links and .torrent files, from the browser, Finder or drag and drop.
 - Choose which files to download, and download in order.
 - Seeding limits by ratio or time, and speed limits.
