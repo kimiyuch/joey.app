@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (2026-10-10)
+
+- The player has buttons to skip back and forward 10 seconds.
+
 ## 0.2.1 (2026-10-09)
 
 - The screen no longer dims or goes to sleep while a video is playing.

@@ -670,12 +670,18 @@ struct PlayerView: View {
 
     private var controls: some View {
         HStack(spacing: 14) {
+            Button("Back 10 Seconds", systemImage: "gobackward.10") { player.seek(by: -10) }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+                .help("Back 10 Seconds")
             Button(player.isPaused ? "Play" : "Pause", systemImage: player.isPaused ? "play.fill" : "pause.fill") {
                 player.togglePause()
             }
             .keyboardShortcut(.space, modifiers: [])
             .font(.title2)
             .frame(width: 28)
+            Button("Forward 10 Seconds", systemImage: "goforward.10") { player.seek(by: 10) }
+                .keyboardShortcut(.rightArrow, modifiers: [])
+                .help("Forward 10 Seconds")
 
             Text(Format.time(scrubPosition ?? player.position))
                 .monospacedDigit().foregroundStyle(.secondary)
@@ -722,13 +728,6 @@ struct PlayerView: View {
 
             Button("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") { player.toggleFullScreen() }
                 .keyboardShortcut("f", modifiers: [])
-
-            // Keyboard-only shortcuts.
-            Group {
-                Button("Back 10 Seconds") { player.seek(by: -10) }.keyboardShortcut(.leftArrow, modifiers: [])
-                Button("Forward 10 Seconds") { player.seek(by: 10) }.keyboardShortcut(.rightArrow, modifiers: [])
-            }
-            .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
