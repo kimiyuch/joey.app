@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.6 (2026-10-10)
+
+- The main window's tabs are now called Download and Watch.
+
 ## 0.2.5 (2026-10-10)
 
 - **Videos in the main window.** Switch between Downloads and Videos at the top of the window, or with ⌘1 and

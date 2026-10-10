@@ -34,7 +34,7 @@ enum Playback {
 final class PlayerLauncher {
     static let shared = PlayerLauncher()
     var pending: [URL] = []
-    /// Set from the Dock menu to bring up the main window on the Videos tab.
+    /// Set from the Dock menu to bring up the main window on the Watch tab.
     var showVideos = false
 }
 

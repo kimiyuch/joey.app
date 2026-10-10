@@ -49,7 +49,7 @@ enum VideoLibrary {
     }
 }
 
-/// The video folder as a flat list, shown from the player's controls and in the main window's Videos tab.
+/// The video folder as a flat list, shown from the player's controls and in the main window's Watch tab.
 /// Equatable on `current`, so the player's frequent time updates don't redraw it.
 struct VideoLibraryList: View, Equatable {
     /// The file playing in the window, marked in the list.

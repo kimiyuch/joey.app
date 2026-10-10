@@ -2,10 +2,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum MainTab: String, CaseIterable {
+    // The raw values are what's saved, so they stay as they are when the labels change.
     case downloads = "Downloads", videos = "Videos"
+
+    var title: String {
+        switch self {
+        case .downloads: "Download"
+        case .videos: "Watch"
+        }
+    }
 }
 
-/// The main window: torrents or videos, and it reopens on whichever was used last.
+/// The main window: Download (torrents) or Watch (videos), and it reopens on whichever was used last.
 struct ContentView: View {
     @Environment(TorrentStore.self) private var store
     @AppStorage(Defaults.mainTab) private var tab = MainTab.downloads
@@ -20,7 +28,7 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("Show", selection: $tab) {
-                    ForEach(MainTab.allCases, id: \.self) { Text($0.rawValue) }
+                    ForEach(MainTab.allCases, id: \.self) { Text($0.title) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -34,15 +42,15 @@ struct ContentView: View {
     }
 }
 
-/// View → Downloads / Videos, which also bring the main window back if it was closed.
+/// View → Download / Watch, which also bring the main window back if it was closed.
 struct MainTabCommands: View {
     @AppStorage(Defaults.mainTab) private var tab = MainTab.downloads
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Downloads") { show(.downloads) }
+        Button(MainTab.downloads.title) { show(.downloads) }
             .keyboardShortcut("1")
-        Button("Videos") { show(.videos) }
+        Button(MainTab.videos.title) { show(.videos) }
             .keyboardShortcut("2")
         Divider()
     }
