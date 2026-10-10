@@ -22,6 +22,15 @@ enum Format {
         value.formatted(.percent.precision(.fractionLength(value < 1 ? 1 : 0)))
     }
 
+    /// When a file was added: "Today", "Yesterday", "8 Oct", or "8 Oct 2025" for other years.
+    static func added(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let sameYear = calendar.isDate(date, equalTo: .now, toGranularity: .year)
+        return date.formatted(sameYear ? .dateTime.day().month(.abbreviated) : .dateTime.day().month(.abbreviated).year())
+    }
+
     /// Playback time like "4:05" or "1:02:09".
     static func time(_ seconds: Double) -> String {
         let total = seconds.isFinite ? max(Int(seconds), 0) : 0

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.7 (2026-10-10)
+
+- **A tidier video list.** Release names like `Slow.Horses.S06E03.1080p.HEVC…` show as "Slow Horses · S06E03",
+  with episode titles where the file name has them. Episodes are grouped by show, in order, with movies in between.
+- Each video shows its quality and file type, when it was added, and how much is left if you stopped partway
+  through. Right-click to start one from the beginning.
+- Continue Watching, the Dock menu and the menu bar item use the cleaned-up names too.
+- Download and upload speeds moved to a status bar at the bottom of the main window, with how many torrents
+  are downloading and seeding.
+
 ## 0.2.6 (2026-10-10)
 
 - The main window's tabs are now called Download and Watch.

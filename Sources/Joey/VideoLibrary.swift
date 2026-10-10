@@ -10,6 +10,15 @@ struct LibraryVideo: Identifiable, Hashable {
     let folder: String
     let size: Int64
     let added: Date
+    let release: ReleaseName
+}
+
+/// A show's episodes under one header, or a single row without one.
+private struct VideoGroup: Identifiable {
+    let id: String
+    /// The show's name; nil for movies and for the flat Recently Added list.
+    let title: String?
+    let videos: [LibraryVideo]
 }
 
 enum VideoLibrary {
@@ -42,7 +51,8 @@ enum VideoLibrary {
                 name: url.lastPathComponent,
                 folder: components.dropFirst(rootDepth).dropLast().joined(separator: "/"),
                 size: Int64(values.fileSize ?? 0),
-                added: values.addedToDirectoryDate ?? values.creationDate ?? .distantPast
+                added: values.addedToDirectoryDate ?? values.creationDate ?? .distantPast,
+                release: ReleaseName(url)
             ))
         }
         return videos
@@ -75,12 +85,39 @@ struct VideoLibraryList: View, Equatable {
 
     private var shown: [LibraryVideo] {
         let terms = search.split(separator: " ")
-        let matching = videos.filter { video in
-            terms.allSatisfy { video.name.localizedStandardContains($0) || video.folder.localizedStandardContains($0) }
+        return videos.filter { video in
+            terms.allSatisfy {
+                video.name.localizedStandardContains($0) || video.release.title.localizedStandardContains($0)
+                    || video.folder.localizedStandardContains($0)
+            }
         }
-        switch sort {
-        case .name: return matching.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        case .added: return matching.sorted { $0.added > $1.added }
+    }
+
+    /// By name, episodes are grouped by show, with shows and movies in one alphabetical list.
+    /// Recently Added is a flat list.
+    private func groups(_ videos: [LibraryVideo]) -> [VideoGroup] {
+        if sort == .added {
+            return [VideoGroup(id: "", title: nil, videos: videos.sorted { $0.added > $1.added })]
+        }
+        let shows = Dictionary(grouping: videos.filter(\.release.isEpisode), by: \.release.showKey)
+            .map { key, episodes in
+                let sorted = episodes.sorted {
+                    ($0.release.season ?? 0, $0.release.episode ?? 0, $0.name) < ($1.release.season ?? 0, $1.release.episode ?? 0, $1.name)
+                }
+                return VideoGroup(id: "show:" + key, title: sorted[0].release.title, videos: sorted)
+            }
+        let movies = videos.filter { !$0.release.isEpisode }
+            .map { VideoGroup(id: $0.url.path, title: nil, videos: [$0]) }
+        let sorted = (shows + movies).sorted {
+            ($0.title ?? $0.videos[0].release.title).localizedStandardCompare($1.title ?? $1.videos[0].release.title) == .orderedAscending
+        }
+        // Movies next to each other share one block, spaced off from the shows around them.
+        return sorted.reduce(into: []) { groups, group in
+            if group.title == nil, let last = groups.last, last.title == nil {
+                groups[groups.count - 1] = VideoGroup(id: last.id, title: nil, videos: last.videos + group.videos)
+            } else {
+                groups.append(group)
+            }
         }
     }
 
@@ -125,14 +162,26 @@ struct VideoLibraryList: View, Equatable {
             .padding(10)
 
             ScrollView {
-                let positions = WatchHistory.shared.positions()
+                let history = WatchHistory.shared.entries()
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if showsContinueWatching && search.isEmpty {
                         ContinueWatching(onPlay: onPlay)
                     }
-                    ForEach(shown) { video in
-                        let isCurrent = video.url.standardizedFileURL == current?.standardizedFileURL
-                        VideoRow(video: video, resume: positions[video.url.path], isCurrent: isCurrent) { onPlay(video.url) }
+                    ForEach(groups(shown)) { group in
+                        if let title = group.title {
+                            ShowHeader(title: title, count: group.videos.count)
+                        } else if sort == .name {
+                            Spacer().frame(height: 14)
+                        }
+                        ForEach(Array(group.videos.enumerated()), id: \.element.id) { index, video in
+                            VideoRow(
+                                video: video,
+                                inShow: group.title != nil,
+                                isStriped: index % 2 == 0,
+                                resume: history[video.url.path],
+                                isCurrent: video.url.standardizedFileURL == current?.standardizedFileURL
+                            ) { onPlay(video.url) }
+                        }
                     }
                 }
                 .padding(.leading, 8)
@@ -181,13 +230,13 @@ private struct ContinueWatching: View {
         let entries = WatchHistory.shared.continueWatching(limit: 4)
         if !entries.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Continue Watching").font(.headline)
+                Text("Continue Watching").font(.title2.weight(.bold))
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 10)], spacing: 10) {
                     ForEach(entries) { entry in
                         ContinueWatchingCard(entry: entry) { onPlay(entry.url) }
                     }
                 }
-                Text("All Videos").font(.headline).padding(.top, 14)
+                Text("All Videos").font(.title2.weight(.bold)).padding(.top, 18)
             }
             .padding(.horizontal, 6)
             .padding(.bottom, 6)
@@ -203,14 +252,19 @@ private struct ContinueWatchingCard: View {
     var body: some View {
         Button(action: onPlay) {
             VStack(alignment: .leading, spacing: 8) {
+                let release = ReleaseName(entry.url)
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: isHovered ? "play.circle.fill" : "film")
                         .font(.title2)
                         .foregroundStyle(.tint)
                         .frame(width: 26)
-                    Text(entry.url.deletingPathExtension().lastPathComponent)
-                        .lineLimit(2).truncationMode(.middle)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(release.title).fontWeight(.medium).lineLimit(1)
+                        if let detail = release.detail {
+                            Text(detail).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Spacer(minLength: 0)
                 if entry.duration > 0 {
@@ -239,9 +293,29 @@ private struct ContinueWatchingCard: View {
     }
 }
 
+private struct ShowHeader: View {
+    let title: String
+    let count: Int
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title).font(.title3.weight(.semibold))
+            Text(count == 1 ? "1 episode" : "\(count) episodes")
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
+    }
+}
+
 private struct VideoRow: View {
     let video: LibraryVideo
-    let resume: Double?
+    /// Under a show's header, so the show's name is left out.
+    let inShow: Bool
+    /// Every other row is shaded.
+    let isStriped: Bool
+    let resume: WatchHistory.Entry?
     let isCurrent: Bool
     let onPlay: () -> Void
     @State private var isHovered = false
@@ -249,31 +323,101 @@ private struct VideoRow: View {
     var body: some View {
         Button(action: onPlay) {
             HStack(spacing: 8) {
-                Image(systemName: "play.fill")
-                    .font(.caption2)
-                    .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.blue))
-                    .opacity(isCurrent || isHovered ? 1 : 0)
-                Text(video.name)
-                    .lineLimit(1).truncationMode(.middle)
+                title
+                    .lineLimit(1)
                     .fontWeight(isCurrent ? .semibold : .regular)
+                    .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
                 Spacer(minLength: 8)
-                Text(resume.map(Format.time) ?? "")
-                    .foregroundStyle(.tint)
-                    .frame(width: 56, alignment: .trailing)
-                Text(Format.bytes(video.size))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 64, alignment: .trailing)
+                status
+                HStack(spacing: 4) {
+                    if let quality = video.release.quality { Badge(text: quality) }
+                    Badge(text: video.url.pathExtension.uppercased())
+                }
+                .frame(width: 92, alignment: .trailing)
+                Text(Format.added(video.added))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 76, alignment: .trailing)
             }
-            .monospacedDigit()
             .padding(.horizontal, 6)
             .padding(.vertical, 6)
-            .background(.quaternary.opacity(isHovered ? 0.5 : 0), in: .rect(cornerRadius: 6))
+            .background(.quaternary.opacity(isHovered ? 0.8 : isStriped ? 0.35 : 0), in: .rect(cornerRadius: 6))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .help("\(video.name)\n\(Format.bytes(video.size))")
         .contextMenu {
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([video.url]) }
+            if resume != nil {
+                Button("Start from Beginning") { WatchHistory.shared.forget(video.url) }
+            }
         }
+    }
+
+    @ViewBuilder private var title: some View {
+        let release = video.release
+        if inShow, let code = release.code {
+            HStack(spacing: 10) {
+                Text(code).foregroundStyle(.secondary).monospacedDigit()
+                Text(release.episodeTitle ?? "Episode \(release.episode ?? 0)")
+            }
+        } else {
+            HStack(spacing: 6) {
+                // Movies stand on their own, so their titles weigh as much as a show's.
+                Text(release.title).fontWeight(release.isEpisode ? .regular : .semibold)
+                if let detail = release.detail {
+                    Text(detail).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        if isCurrent {
+            Label("Playing", systemImage: "play.fill")
+                .font(.caption)
+                .foregroundStyle(.tint)
+        } else if let resume {
+            HStack(spacing: 5) {
+                if resume.duration > 0 {
+                    ProgressRing(value: resume.progress)
+                    Text("\(Format.time(resume.duration - resume.position)) left")
+                } else {
+                    Text("Stopped at \(Format.time(resume.position))")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+        }
+    }
+}
+
+/// A small outlined tag like "1080p" or "MKV".
+private struct Badge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.tertiary, lineWidth: 1))
+    }
+}
+
+private struct ProgressRing: View {
+    let value: Double
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(.quaternary, lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: value)
+                .stroke(.tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 10, height: 10)
     }
 }

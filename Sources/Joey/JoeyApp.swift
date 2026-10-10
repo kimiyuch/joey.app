@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !recent.isEmpty {
             menu.addItem(.sectionHeader(title: "Continue Watching"))
             for entry in recent {
-                let item = NSMenuItem(title: entry.url.lastPathComponent, action: #selector(playFromDock), keyEquivalent: "")
+                let item = NSMenuItem(title: ReleaseName(entry.url).fullTitle, action: #selector(playFromDock), keyEquivalent: "")
                 item.target = self
                 item.representedObject = entry.url
                 menu.addItem(item)
@@ -149,7 +149,7 @@ struct MenuBarContent: View {
             Divider()
             Section("Continue Watching") {
                 ForEach(recent) { entry in
-                    Button(entry.url.lastPathComponent) {
+                    Button(ReleaseName(entry.url).fullTitle) {
                         openWindow(id: "player", value: entry.url)
                         NSApp.activate()
                     }

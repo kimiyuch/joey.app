@@ -25,7 +25,19 @@ struct ContentView: View {
             case .videos: VideosView()
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
+        .toolbar(removing: .title)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                HStack(spacing: 6) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 22, height: 22)
+                    Text("Joey").font(.headline)
+                }
+                .padding(.horizontal, 4)
+            }
+            .sharedBackgroundVisibility(.hidden)
             ToolbarItem(placement: .principal) {
                 Picker("Show", selection: $tab) {
                     ForEach(MainTab.allCases, id: \.self) { Text($0.title) }
@@ -38,7 +50,50 @@ struct ContentView: View {
                 SettingsLink { Label("Settings", systemImage: "gearshape") }
             }
         }
-        .navigationSubtitle("↓ \(Format.rate(store.totalDownloadRate))   ↑ \(Format.rate(store.totalUploadRate))")
+    }
+}
+
+/// The footer of the main window: total speeds, and how many torrents are doing what.
+private struct StatusBar: View {
+    @Environment(TorrentStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Label(Format.rate(store.totalDownloadRate), systemImage: "arrow.down")
+            Label(Format.rate(store.totalUploadRate), systemImage: "arrow.up")
+            Spacer()
+            Text(summary)
+        }
+        .labelStyle(StatusLabelStyle())
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .monospacedDigit()
+        // Clear of the window's rounded corners.
+        .padding(.horizontal, 22)
+        .padding(.vertical, 7)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    /// e.g. "4 torrents · 1 downloading · 2 seeding".
+    private var summary: String {
+        let torrents = store.torrents
+        guard !torrents.isEmpty else { return "No torrents" }
+        var parts = [torrents.count == 1 ? "1 torrent" : "\(torrents.count) torrents"]
+        let downloading = torrents.filter { $0.state.isActiveDownload }.count
+        let seeding = torrents.filter { $0.state == .seeding }.count
+        if downloading > 0 { parts.append("\(downloading) downloading") }
+        if seeding > 0 { parts.append("\(seeding) seeding") }
+        return parts.joined(separator: " · ")
+    }
+}
+
+private struct StatusLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon.imageScale(.small)
+            configuration.title
+        }
     }
 }
 

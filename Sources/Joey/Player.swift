@@ -103,19 +103,23 @@ final class WatchHistory {
         }
     }
 
-    /// Files left off partway through, most recently watched first. Files that are gone are skipped.
-    func continueWatching(limit: Int) -> [Entry] {
+    /// Every file left off partway through, keyed by path.
+    func entries() -> [String: Entry] {
         let recent = recentlyWatched()
-        let entries = positions().map { path, position in
-            let info = recent[path] ?? [:]
-            return Entry(
-                url: URL(fileURLWithPath: path),
-                position: position,
+        return positions().reduce(into: [:]) { entries, item in
+            let info = recent[item.key] ?? [:]
+            entries[item.key] = Entry(
+                url: URL(fileURLWithPath: item.key),
+                position: item.value,
                 duration: info["duration"] ?? 0,
                 watched: Date(timeIntervalSince1970: info["watched"] ?? 0)
             )
         }
-        return Array(entries
+    }
+
+    /// Files left off partway through, most recently watched first. Files that are gone are skipped.
+    func continueWatching(limit: Int) -> [Entry] {
+        Array(entries().values
             .sorted { ($0.watched, $1.url.path) > ($1.watched, $0.url.path) }
             .lazy
             .filter { FileManager.default.fileExists(atPath: $0.url.path) }

@@ -44,6 +44,7 @@ let package = Package(
             dependencies: ["TorrentCore", "CMpv"],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("BareSlashRegexLiterals"),
                 .unsafeFlags(["-F\(sparkle)", "-Xcc", "-I\(mpv)/include", "-Xcc", "-DGL_SILENCE_DEPRECATION"]),
             ],
             linkerSettings: [
