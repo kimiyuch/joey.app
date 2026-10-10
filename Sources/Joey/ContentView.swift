@@ -1,7 +1,68 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum MainTab: String, CaseIterable {
+    case downloads = "Downloads", videos = "Videos"
+}
+
+/// The main window: torrents or videos, and it reopens on whichever was used last.
 struct ContentView: View {
+    @Environment(TorrentStore.self) private var store
+    @AppStorage(Defaults.mainTab) private var tab = MainTab.downloads
+
+    var body: some View {
+        Group {
+            switch tab {
+            case .downloads: DownloadsView()
+            case .videos: VideosView()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Show", selection: $tab) {
+                    ForEach(MainTab.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+            ToolbarItem(placement: .primaryAction) {
+                SettingsLink { Label("Settings", systemImage: "gearshape") }
+            }
+        }
+        .navigationSubtitle("↓ \(Format.rate(store.totalDownloadRate))   ↑ \(Format.rate(store.totalUploadRate))")
+    }
+}
+
+/// View → Downloads / Videos, which also bring the main window back if it was closed.
+struct MainTabCommands: View {
+    @AppStorage(Defaults.mainTab) private var tab = MainTab.downloads
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Downloads") { show(.downloads) }
+            .keyboardShortcut("1")
+        Button("Videos") { show(.videos) }
+            .keyboardShortcut("2")
+        Divider()
+    }
+
+    private func show(_ tab: MainTab) {
+        self.tab = tab
+        openWindow(id: "main")
+    }
+}
+
+/// Every video in the video folder, with what you were watching on top.
+struct VideosView: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        VideoLibraryList(showsContinueWatching: true) { openWindow(id: "player", value: $0) }
+    }
+}
+
+struct DownloadsView: View {
     @Environment(TorrentStore.self) private var store
     @Environment(\.openWindow) private var openWindow
     @State private var selection = Set<String>()
@@ -109,7 +170,6 @@ struct ContentView: View {
             .inspectorColumnWidth(min: 260, ideal: 320, max: 480)
         }
         .toolbar { toolbar }
-        .navigationSubtitle("↓ \(Format.rate(store.totalDownloadRate))   ↑ \(Format.rate(store.totalUploadRate))")
         .fileImporter(
             isPresented: $showImporter,
             allowedContentTypes: [UTType(filenameExtension: "torrent") ?? .data],
@@ -152,9 +212,6 @@ struct ContentView: View {
         }
         ToolbarItem {
             Button("Inspector", systemImage: "sidebar.right") { showInspector.toggle() }
-        }
-        ToolbarItem {
-            SettingsLink { Label("Settings", systemImage: "gearshape") }
         }
     }
 

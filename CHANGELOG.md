@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5 (2026-10-10)
+
+- **Videos in the main window.** Switch between Downloads and Videos at the top of the window, or with ⌘1 and
+  ⌘2. Joey opens on whichever you used last.
+- **Continue Watching.** The Videos tab starts with what you stopped partway through, with how much is left.
+- The Dock icon's menu and the menu bar item list your unfinished videos too, one click to pick up where you left off.
+
 ## 0.2.4 (2026-10-10)
 
 - ⌘F switches the player to full screen and back, in addition to F.

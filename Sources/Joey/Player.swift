@@ -34,6 +34,8 @@ enum Playback {
 final class PlayerLauncher {
     static let shared = PlayerLauncher()
     var pending: [URL] = []
+    /// Set from the Dock menu to bring up the main window on the Videos tab.
+    var showVideos = false
 }
 
 struct OpenVideoButton: View {
@@ -52,19 +54,85 @@ struct OpenVideoButton: View {
     }
 }
 
-/// Where each file was left off, keyed by path.
-enum ResumePositions {
-    private static let key = "resumePositions"
+/// Where each file was left off, keyed by path, and when it was last watched (for Continue Watching).
+@MainActor
+@Observable
+final class WatchHistory {
+    static let shared = WatchHistory()
 
-    static func position(for url: URL) -> Double? {
-        (UserDefaults.standard.dictionary(forKey: key) as? [String: Double])?[url.path]
+    struct Entry: Identifiable {
+        var id: URL { url }
+        let url: URL
+        let position: Double
+        /// 0 for positions saved before durations were recorded.
+        let duration: Double
+        let watched: Date
+
+        var progress: Double { duration > 0 ? min(position / duration, 1) : 0 }
     }
 
-    static func save(_ position: Double, duration: Double, for url: URL) {
-        var all = UserDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:]
+    private static let positionsKey = "resumePositions"
+    private static let recentKey = "recentlyWatched"
+
+    /// Bumped on every change, so views that show positions redraw.
+    private var revision = 0
+
+    func position(for url: URL) -> Double? {
+        positions()[url.path]
+    }
+
+    func positions() -> [String: Double] {
+        _ = revision
+        return UserDefaults.standard.dictionary(forKey: Self.positionsKey) as? [String: Double] ?? [:]
+    }
+
+    func save(_ position: Double, duration: Double, for url: URL) {
         // Nothing worth resuming right at the start, and a file watched to the end starts over next time.
-        all[url.path] = position > 15 && duration - position > 60 ? position : nil
-        UserDefaults.standard.set(all, forKey: key)
+        let keep = position > 15 && duration - position > 60
+        update(url) { positions, recent in
+            positions[url.path] = keep ? position : nil
+            recent[url.path] = keep ? ["watched": Date().timeIntervalSince1970, "duration": duration] : nil
+        }
+    }
+
+    /// Takes a file off Continue Watching; it starts from the beginning next time.
+    func forget(_ url: URL) {
+        update(url) { positions, recent in
+            positions[url.path] = nil
+            recent[url.path] = nil
+        }
+    }
+
+    /// Files left off partway through, most recently watched first. Files that are gone are skipped.
+    func continueWatching(limit: Int) -> [Entry] {
+        let recent = recentlyWatched()
+        let entries = positions().map { path, position in
+            let info = recent[path] ?? [:]
+            return Entry(
+                url: URL(fileURLWithPath: path),
+                position: position,
+                duration: info["duration"] ?? 0,
+                watched: Date(timeIntervalSince1970: info["watched"] ?? 0)
+            )
+        }
+        return Array(entries
+            .sorted { ($0.watched, $1.url.path) > ($1.watched, $0.url.path) }
+            .lazy
+            .filter { FileManager.default.fileExists(atPath: $0.url.path) }
+            .prefix(limit))
+    }
+
+    private func recentlyWatched() -> [String: [String: Double]] {
+        UserDefaults.standard.dictionary(forKey: Self.recentKey) as? [String: [String: Double]] ?? [:]
+    }
+
+    private func update(_ url: URL, _ change: (inout [String: Double], inout [String: [String: Double]]) -> Void) {
+        var positions = positions()
+        var recent = recentlyWatched()
+        change(&positions, &recent)
+        UserDefaults.standard.set(positions, forKey: Self.positionsKey)
+        UserDefaults.standard.set(recent, forKey: Self.recentKey)
+        revision += 1
     }
 }
 
@@ -134,7 +202,7 @@ final class MPVPlayer {
 
     private func load() {
         var options = ""
-        if let start = ResumePositions.position(for: url) { options = "start=\(start)" }
+        if let start = WatchHistory.shared.position(for: url) { options = "start=\(start)" }
         command(["loadfile", url.path, "replace", "-1", options])
         NowPlaying.shared.activate(self)
     }
@@ -260,7 +328,7 @@ final class MPVPlayer {
 
     private func savePosition() {
         guard duration > 0 else { return }
-        ResumePositions.save(position, duration: duration, for: url)
+        WatchHistory.shared.save(position, duration: duration, for: url)
         lastSavedPosition = position
     }
 
@@ -749,6 +817,7 @@ struct PlayerView: View {
                         onOpen(url)
                     }
                     .equatable()
+                    .frame(width: 640, height: 380)
                 }
 
             Button("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right") { player.toggleFullScreen() }

@@ -21,6 +21,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         store.shutdown()
     }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        let recent = WatchHistory.shared.continueWatching(limit: 5)
+        if !recent.isEmpty {
+            menu.addItem(.sectionHeader(title: "Continue Watching"))
+            for entry in recent {
+                let item = NSMenuItem(title: entry.url.lastPathComponent, action: #selector(playFromDock), keyEquivalent: "")
+                item.target = self
+                item.representedObject = entry.url
+                menu.addItem(item)
+            }
+            menu.addItem(.separator())
+        }
+        let videos = NSMenuItem(title: "Show Videos", action: #selector(showVideosFromDock), keyEquivalent: "")
+        videos.target = self
+        menu.addItem(videos)
+        return menu
+    }
+
+    // The Dock menu has no SwiftUI environment, so the menu bar label opens the windows (see MenuBarLabel).
+    @objc private func playFromDock(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        PlayerLauncher.shared.pending.append(url)
+    }
+
+    @objc private func showVideosFromDock() {
+        PlayerLauncher.shared.showVideos = true
+    }
 }
 
 @main
@@ -40,6 +69,9 @@ struct JoeyApp: App {
             }
             CommandGroup(after: .newItem) {
                 OpenVideoButton()
+            }
+            CommandGroup(before: .toolbar) {
+                MainTabCommands()
             }
         }
 
@@ -68,6 +100,7 @@ struct JoeyApp: App {
 struct MenuBarLabel: View {
     let store: TorrentStore
     @Environment(\.openWindow) private var openWindow
+    @AppStorage(Defaults.mainTab) private var tab = MainTab.downloads
 
     var body: some View {
         Group {
@@ -84,6 +117,13 @@ struct MenuBarLabel: View {
             launcher.pending.forEach { openWindow(id: "player", value: $0) }
             if !launcher.pending.isEmpty { launcher.pending = [] }
         }
+        .onChange(of: PlayerLauncher.shared.showVideos) {
+            guard PlayerLauncher.shared.showVideos else { return }
+            PlayerLauncher.shared.showVideos = false
+            tab = .videos
+            openWindow(id: "main")
+            NSApp.activate()
+        }
     }
 }
 
@@ -91,6 +131,7 @@ struct MenuBarContent: View {
     let updaterModel: UpdaterModel
     @Environment(TorrentStore.self) private var store
     @Environment(\.openWindow) private var openWindow
+    @AppStorage(Defaults.mainTab) private var tab = MainTab.downloads
 
     var body: some View {
         Text("↓ \(Format.rate(store.totalDownloadRate))   ↑ \(Format.rate(store.totalUploadRate))")
@@ -103,12 +144,30 @@ struct MenuBarContent: View {
             }
         }
 
+        let recent = WatchHistory.shared.continueWatching(limit: 5)
+        if !recent.isEmpty {
+            Divider()
+            Section("Continue Watching") {
+                ForEach(recent) { entry in
+                    Button(entry.url.lastPathComponent) {
+                        openWindow(id: "player", value: entry.url)
+                        NSApp.activate()
+                    }
+                }
+            }
+        }
+
         Divider()
         Button("Show Joey") {
             openWindow(id: "main")
             NSApp.activate()
         }
         .keyboardShortcut("0")
+        Button("Show Videos") {
+            tab = .videos
+            openWindow(id: "main")
+            NSApp.activate()
+        }
         Button("Pause All") { store.pauseAll() }
             .disabled(!store.torrents.contains { !$0.state.isPaused })
         Button("Resume All") { store.resumeAll() }

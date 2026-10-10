@@ -12,6 +12,7 @@ enum Defaults {
     static let ratioLimit = "ratioLimit"
     static let stopAfterTime = "stopAfterTime"
     static let seedMinutes = "seedMinutes"
+    static let mainTab = "mainTab"
 
     static func register() {
         UserDefaults.standard.register(defaults: [ratioLimit: 2.0, seedMinutes: 24 * 60])

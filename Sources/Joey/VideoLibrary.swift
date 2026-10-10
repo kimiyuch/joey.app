@@ -49,15 +49,16 @@ enum VideoLibrary {
     }
 }
 
-/// The video folder as a flat list, shown from the player's controls.
+/// The video folder as a flat list, shown from the player's controls and in the main window's Videos tab.
 /// Equatable on `current`, so the player's frequent time updates don't redraw it.
 struct VideoLibraryList: View, Equatable {
     /// The file playing in the window, marked in the list.
-    let current: URL
+    var current: URL?
+    /// Shows the files left off partway through above the list.
+    var showsContinueWatching = false
     let onPlay: (URL) -> Void
     @Environment(TorrentStore.self) private var store
     @State private var videos: [LibraryVideo] = []
-    @State private var resume: [URL: Double] = [:]
     @State private var isScanning = true
     @State private var search = ""
     @AppStorage("videoLibrarySort") private var sort = Sort.name
@@ -66,7 +67,9 @@ struct VideoLibraryList: View, Equatable {
         case name = "Name", added = "Recently Added"
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.current == rhs.current }
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current == rhs.current && lhs.showsContinueWatching == rhs.showsContinueWatching
+    }
 
     private var folder: URL { VideoLibrary.folder(downloadFolder: store.downloadFolder) }
 
@@ -122,10 +125,14 @@ struct VideoLibraryList: View, Equatable {
             .padding(10)
 
             ScrollView {
-                LazyVStack(spacing: 0) {
+                let positions = WatchHistory.shared.positions()
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if showsContinueWatching && search.isEmpty {
+                        ContinueWatching(onPlay: onPlay)
+                    }
                     ForEach(shown) { video in
-                        let isCurrent = video.url.standardizedFileURL == current.standardizedFileURL
-                        VideoRow(video: video, resume: resume[video.url], isCurrent: isCurrent) { onPlay(video.url) }
+                        let isCurrent = video.url.standardizedFileURL == current?.standardizedFileURL
+                        VideoRow(video: video, resume: positions[video.url.path], isCurrent: isCurrent) { onPlay(video.url) }
                     }
                 }
                 .padding(.leading, 8)
@@ -146,7 +153,6 @@ struct VideoLibraryList: View, Equatable {
                 }
             }
         }
-        .frame(width: 640, height: 380)
         .onAppear(perform: scan)
     }
 
@@ -162,10 +168,73 @@ struct VideoLibraryList: View, Equatable {
         Task {
             let found = await Task.detached { VideoLibrary.scan(root, skipping: unfinished) }.value
             videos = found
-            resume = Dictionary(uniqueKeysWithValues: found.compactMap { video in
-                ResumePositions.position(for: video.url).map { (video.url, $0) }
-            })
             isScanning = false
+        }
+    }
+}
+
+/// Cards for the files left off partway through, most recent first. Empty when there are none.
+private struct ContinueWatching: View {
+    let onPlay: (URL) -> Void
+
+    var body: some View {
+        let entries = WatchHistory.shared.continueWatching(limit: 4)
+        if !entries.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Continue Watching").font(.headline)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 10)], spacing: 10) {
+                    ForEach(entries) { entry in
+                        ContinueWatchingCard(entry: entry) { onPlay(entry.url) }
+                    }
+                }
+                Text("All Videos").font(.headline).padding(.top, 14)
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 6)
+        }
+    }
+}
+
+private struct ContinueWatchingCard: View {
+    let entry: WatchHistory.Entry
+    let onPlay: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onPlay) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: isHovered ? "play.circle.fill" : "film")
+                        .font(.title2)
+                        .foregroundStyle(.tint)
+                        .frame(width: 26)
+                    Text(entry.url.deletingPathExtension().lastPathComponent)
+                        .lineLimit(2).truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Spacer(minLength: 0)
+                if entry.duration > 0 {
+                    ProgressView(value: entry.progress).controlSize(.small)
+                    Text("\(Format.time(entry.duration - entry.position)) left")
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                } else {
+                    Text("Stopped at \(Format.time(entry.position))")
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            .background(.quaternary.opacity(isHovered ? 0.8 : 0.45), in: .rect(cornerRadius: 10))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(entry.url.lastPathComponent)
+        .contextMenu {
+            Button("Play") { onPlay() }
+            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }
+            Divider()
+            Button("Remove from Continue Watching") { WatchHistory.shared.forget(entry.url) }
         }
     }
 }
